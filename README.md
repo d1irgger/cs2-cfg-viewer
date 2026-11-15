@@ -1,4 +1,8 @@
 # CS2 CFG Viewer
+<p align="center">
+  <a href="README.md">简体中文</a> ·
+  <a href="README.en.md">English</a>
+</p>
 
 > 把复杂的 CS2 配置文件，变成一眼能读懂的中文界面。
 

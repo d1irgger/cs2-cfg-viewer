@@ -6,7 +6,7 @@
 
 A visual **CFG/VCFG viewer and parser** built for **Counter-Strike 2**, with English-to-Chinese translation for keybinds, console commands, and video settings — so you can understand your own (or someone else's) config at a glance.
 
-[![Version](https://img.shields.io/badge/version-4.1.0-6aa0ff)](https://github.com/d1irgger/cs2-cfg-viewer)
+[![Version](https://img.shields.io/badge/version-4.2.0-6aa0ff)](https://github.com/d1irgger/cs2-cfg-viewer)
 [![Online](https://img.shields.io/badge/🌐_Live_Demo-d1irgger.github.io/cs2--cfg--viewer-a98bff)](https://d1irgger.github.io/cs2-cfg-viewer/)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 

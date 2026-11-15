@@ -1,5 +1,8 @@
 # CS2 CFG Viewer
-
+<p align="center">
+  <a href="README.md">简体中文</a> ·
+  <a href="README.en.md">English</a>
+</p>
 > Turn complex CS2 config files into an interface you can understand at a glance.
 
 A visual **CFG / VCFG parser** built for **Counter-Strike 2**, with smart Chinese translation for key binds, console commands, and video settings — so you can instantly understand your own (or someone else's) config.

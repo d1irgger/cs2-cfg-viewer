@@ -44,7 +44,7 @@ Inside these files are large numbers of key-value pairs such as `bind "key" "+co
 
 ## ✨ Features
 
-### Web Version (v4.1.0)
+### Web Version (v4.2.0)
 
 - **🧠 Translation enhanced by official descriptions**: Includes ~150 built-in Chinese descriptions for commonly used commands, displayed instantly. Remaining entries use the official CS2 English description as translation context, improving machine-translation accuracy.
 - **📥 cvarlist.md import**: One-click import of a community-maintained CS2 command list, expanding the English description library to 4000+ entries.

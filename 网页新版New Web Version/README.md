@@ -1,4 +1,4 @@
-# CS2 CFG Viewer · 网页新版 v4.1.0
+# CS2 CFG Viewer · 网页新版 v4.2.0
 
 > 单文件 HTML 应用 · 零依赖 · 双击即用 针对最新版本CS2更新！！
 

@@ -1914,5 +1914,695 @@ function bindEvents(){
 bindEvents();
 renderAll();
 </script>
+<!-- ===== 双语补丁 / Bilingual patch：粘贴到 </body> 之前 ===== -->
+<style>
+.lang-toggle{font-family:inherit;font-size:12px;font-weight:600;padding:6px 12px;border-radius:10px;cursor:pointer;
+  background:linear-gradient(135deg,#6aa0ff,#a98bff);color:#fff;border:1px solid rgba(255,255,255,.6);white-space:nowrap;transition:all .15s}
+.lang-toggle:hover{filter:brightness(1.06);transform:translateY(-1px)}
+</style>
+<script>
+(function(){
+"use strict";
+
+/* ================= 1. 语言状态 ================= */
+const LS_LANG = "cs2cfg.lang";
+let LANG = (function(){
+  try{ const s = localStorage.getItem(LS_LANG); if(s === "zh" || s === "en") return s; }catch(_){}
+  return (navigator.language || "zh").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+})();
+const isEN = function(){ return LANG === "en"; };
+function saveLang(){ try{ localStorage.setItem(LS_LANG, LANG); }catch(_){} }
+
+/* ================= 2. 界面文本 ================= */
+const UI = {
+  pickDir:{zh:"📁 选择 Steam / userdata 目录",en:"📁 Select Steam / userdata folder"},
+  pickDirTip:{zh:"推荐直接选择 Steam\\userdata 目录（更快）",en:"Tip: pick the Steam\\userdata folder directly (much faster)"},
+  pickFiles:{zh:"📂 手动加载配置文件",en:"📂 Load config files manually"},
+  pickFilesTip:{zh:"手动选择 machine_convars / user_convars / user_keys / video 文件",en:"Pick machine_convars / user_convars / user_keys / video files"},
+  importAutoexec:{zh:"📄 导入 autoexec.cfg",en:"📄 Import autoexec.cfg"},
+  importCvarlist:{zh:"📥 导入 cvarlist.md",en:"📥 Import cvarlist.md"},
+  importCvarlistTip:{zh:"从 SuGolYolLom/CS2-Cvars-Cmds 或 ArmynC/ArminC-CS2-Cvars 下载 cvarlist.md 后导入",en:"Download cvarlist.md from SuGolYolLom/CS2-Cvars-Cmds or ArmynC/ArminC-CS2-Cvars, then import it"},
+  pathPlaceholder:{zh:"选择 Steam 目录，或用 ProSettings 下载解析 autoexec",en:"Select a Steam folder, or import a downloaded autoexec"},
+  dataSource:{zh:"数据源：",en:"Data source: "},
+  reload:{zh:"🔄 加载",en:"🔄 Load"},
+  noSource:{zh:"— 尚无可用数据源 —",en:"— No data source yet —"},
+  manualLoaded:{zh:"— 已加载手动文件 —",en:"— Manual files loaded —"},
+  tabKeys:{zh:"按键绑定",en:"Key binds"},
+  tabVideo:{zh:"设置项",en:"Settings"},
+  tabRaw:{zh:"原始文本",en:"Raw text"},
+  tabDiag:{zh:"诊断",en:"Diagnostics"},
+  search:{zh:"🔍 搜索（按键 / 命令 / 设置项）...",en:"🔍 Search (key / command / setting)..."},
+  thSource:{zh:"源",en:"Source"},
+  thKey:{zh:"按键",en:"Key"},
+  thKeyName:{zh:"按键中文",en:"Key name"},
+  thCmd:{zh:"命令",en:"Command"},
+  thCmdName:{zh:"命令中文",en:"Command name"},
+  thSetting:{zh:"设置项",en:"Setting"},
+  thSettingName:{zh:"设置项中文",en:"Setting name"},
+  thValue:{zh:"值",en:"Value"},
+  thValueName:{zh:"值中文",en:"Meaning"},
+  thDesc:{zh:"官方英文描述",en:"Official description"},
+  emptyNoData:{zh:"还没有载入任何配置",en:"No config loaded yet"},
+  emptyNoBinds:{zh:"这个数据源没有按键绑定",en:"This source has no key binds"},
+  emptyNoVideo:{zh:"这个数据源没有设置项",en:"This source has no settings"},
+  noMatch:{zh:"无匹配结果",en:"No matching results"},
+  missing:{zh:"未收录",en:"Not found"},
+  startOnline:{zh:"🌐 开始联网翻译",en:"🌐 Translate online"},
+  stopOnline:{zh:"⏹ 停止",en:"⏹ Stop"},
+  langBtn:{zh:"🌐 English",en:"🌐 中文"},
+  langTip:{zh:"点击切换到英文界面",en:"Click to switch to Chinese UI"},
+  onlineTip:{zh:"联网翻译只用于补齐中文名称；英文界面由本地词典自动生成，无需联网",en:"Online translation only fills in Chinese names. In English mode names are generated locally."}
+};
+function t(k){ const v = UI[k]; return v ? (v[LANG] || v.zh || k) : k; }
+
+/* ================= 3. 英文词典 ================= */
+const capEN = w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+
+const KEY_EN = Object.assign({
+  mouse1:"Mouse Left", mouse2:"Mouse Right", mouse3:"Middle Mouse",
+  mouse4:"Mouse 4", mouse5:"Mouse 5", mouse6:"Mouse 6", mouse7:"Mouse 7", mouse8:"Mouse 8",
+  mwheelup:"Wheel Up", mwheeldown:"Wheel Down",
+  mouse_x:"Mouse X axis (look)", mouse_y:"Mouse Y axis (look)", mouse_wheel:"Mouse wheel",
+  shift:"Shift", rshift:"Right Shift", lshift:"Left Shift",
+  ctrl:"Ctrl", control:"Ctrl", rctrl:"Right Ctrl", lctrl:"Left Ctrl",
+  alt:"Alt", ralt:"Right Alt", lalt:"Left Alt",
+  capslock:"Caps Lock", numlock:"Num Lock", scrolllock:"Scroll Lock",
+  space:"Space", tab:"Tab", enter:"Enter", return:"Enter",
+  escape:"Esc", esc:"Esc", backspace:"Backspace",
+  del:"Del", delete:"Delete", ins:"Ins", insert:"Insert",
+  home:"Home", end:"End", pgup:"Page Up", pgdn:"Page Down",
+  pageup:"Page Up", pagedown:"Page Down",
+  pause:"Pause", break:"Break", printscreen:"Print Screen", sysreq:"SysRq",
+  up:"Arrow Up", down:"Arrow Down", left:"Arrow Left", right:"Arrow Right",
+  uparrow:"Arrow Up", downarrow:"Arrow Down", leftarrow:"Arrow Left", rightarrow:"Arrow Right",
+  kp_ins:"Keypad Ins", kp_del:"Keypad Del", kp_end:"Keypad End", kp_down:"Keypad Down", kp_pgdn:"Keypad PgDn",
+  kp_left:"Keypad Left", kp_right:"Keypad Right", kp_home:"Keypad Home", kp_up:"Keypad Up", kp_pgup:"Keypad PgUp",
+  kp_slash:"Keypad /", kp_divide:"Keypad /", kp_multiply:"Keypad *", kp_minus:"Keypad -", kp_plus:"Keypad +",
+  kp_enter:"Keypad Enter", kp_period:"Keypad .", kp_decimal:"Keypad .",
+  semicolon:"Semicolon (;)", apostrophe:"Apostrophe (')", comma:"Comma (,)", period:"Period (.)",
+  slash:"Slash (/)", backslash:"Backslash (\\)", lbracket:"Left Bracket ([)", rbracket:"Right Bracket (])",
+  minus:"Minus (-)", equal:"Equals (=)", backtick:"Backtick (`)", grave:"Backtick (`)",
+  '"':"Quote (\")"
+}, Object.fromEntries([..."abcdefghijklmnopqrstuvwxyz"].map(c => [c, c.toUpperCase()])),
+   Object.fromEntries([..."0123456789"].map(c => [c, c])),
+   Object.fromEntries([...Array(12)].map((_,i) => ["f" + (i+1), "F" + (i+1)])),
+   Object.fromEntries([...Array(10)].map((_,i) => ["kp_" + i, "Keypad " + i])));
+
+const CMD_EN = {
+  "+attack":"Fire","-attack":"Release fire","+attack2":"Alt fire","-attack2":"Release alt fire",
+  "+attack3":"Tertiary fire","-attack3":"Release tertiary fire",
+  "+forward":"Move forward","-forward":"Release forward","+back":"Move back","-back":"Release back",
+  "+moveleft":"Strafe left","-moveleft":"Release strafe left","+moveright":"Strafe right","-moveright":"Release strafe right",
+  "+left":"Turn left","-left":"Release turn left","+right":"Turn right","-right":"Release turn right",
+  "+up":"Swim up","-up":"Release up","+down":"Swim down","-down":"Release down",
+  "+jump":"Jump","-jump":"Release jump","+duck":"Crouch","-duck":"Release crouch",
+  "+sprint":"Sprint (hold)","-sprint":"Release sprint",
+  "+speed":"Walk (quiet)","-speed":"Release walk","+walk":"Walk (quiet)","-walk":"Release walk",
+  "+use":"Use / interact","-use":"Release use","use":"Use",
+  "+reload":"Reload","-reload":"Release reload","drop":"Drop weapon","+drop":"Drop weapon",
+  "+lookup":"Look up","+lookdown":"Look down","+mlook":"Mouse look","+klook":"Keyboard look",
+  "+zoom":"Zoom / scope","-zoom":"Release zoom",
+  "+lookatweapon":"Inspect weapon","-lookatweapon":"Stop inspecting","inspect":"Inspect weapon",
+  "yaw":"Yaw (horizontal view)","pitch":"Pitch (vertical view)",
+  "+showscores":"Show scoreboard","-showscores":"Hide scoreboard",
+  "+voicerecord":"Voice chat","-voicerecord":"Release voice",
+  "+radialradio":"Radio wheel","+radialradio2":"Radio wheel 2","+radialradio3":"Radio wheel 3",
+  "+spray_menu":"Spray menu",
+  "+cl_show_team_equipment":"Show teammate equipment","cl_show_team_equipment":"Show teammate equipment",
+  "cl_showpos":"Show position info","toggleradarscale":"Toggle radar scale",
+  "show_loadout_toggle":"Toggle loadout","show_loadout_toggle_off":"Hide loadout",
+  "toggleconsole":"Toggle console","jpeg":"Screenshot","screenshot":"Screenshot",
+  "play":"Play sound","playvol":"Play sound at volume",
+  "teamtoggle":"Change team","teammenu":"Team menu","noclip":"Noclip","impulse":"Impulse command",
+  "bot_place":"Place bot","mute":"Mute","pause":"Pause","quit":"Quit game","quit prompt":"Quit game (confirm)",
+  "slot1":"Primary weapon","slot2":"Secondary weapon","slot3":"Knife","slot4":"Grenade",
+  "slot5":"C4","slot6":"Item slot 6","slot7":"Item slot 7","slot8":"Item slot 8","slot9":"Item slot 9",
+  "slot10":"Item slot 10","slot11":"Item slot 11","slot12":"Item slot 12",
+  "invnext":"Next weapon","invprev":"Previous weapon","lastinv":"Last weapon","switchhands":"Switch hands",
+  "say":"Global chat","say_team":"Team chat","messagemode":"Global chat","messagemode2":"Team chat",
+  "messagemode3":"Chat mode 3","radio":"Radio","radio1":"Radio 1","radio2":"Radio 2","radio3":"Radio 3",
+  "player_ping":"Player ping","buy":"Buy menu","buymenu":"Buy menu",
+  "buyammo1":"Buy primary ammo","buyammo2":"Buy secondary ammo",
+  "autobuy":"Auto-buy","rebuy":"Rebuy","sellbackall":"Sell back all","cancelselect":"Cancel selection",
+  "cs_quit_prompt":"Quit confirmation","callvote":"Call vote","vote":"Vote",
+  "save":"Save game","load":"Load game","save quick":"Quick save","load quick":"Quick load",
+  "quick_save":"Quick save","quick_load":"Quick load","<unbound>":"Unbound",
+  "weapon_ak47":"AK-47","weapon_m4a1":"M4A4","weapon_m4a1_silencer":"M4A1-S",
+  "weapon_awp":"AWP","weapon_deagle":"Desert Eagle","weapon_usp_silencer":"USP-S",
+  "weapon_hkp2000":"P2000","weapon_glock":"Glock-18","weapon_p250":"P250",
+  "weapon_fiveseven":"Five-SeveN","weapon_tec9":"Tec-9","weapon_elite":"Dual Berettas",
+  "weapon_galilar":"Galil AR","weapon_famas":"FAMAS","weapon_sg556":"SG 553","weapon_aug":"AUG",
+  "weapon_ssg08":"SSG 08","weapon_scar20":"SCAR-20","weapon_g3sg1":"G3SG1","weapon_nova":"Nova",
+  "weapon_xm1014":"XM1014","weapon_mag7":"MAG-7","weapon_sawedoff":"Sawed-Off","weapon_m249":"M249",
+  "weapon_negev":"Negev","weapon_mac10":"MAC-10","weapon_mp9":"MP9","weapon_mp7":"MP7",
+  "weapon_mp5sd":"MP5-SD","weapon_ump45":"UMP-45","weapon_p90":"P90","weapon_bizon":"PP-Bizon",
+  "weapon_hegrenade":"HE Grenade","weapon_flashbang":"Flashbang","weapon_smokegrenade":"Smoke Grenade",
+  "weapon_molotov":"Molotov","weapon_incgrenade":"Incendiary Grenade","weapon_decoy":"Decoy Grenade",
+  "weapon_taser":"Zeus x27","weapon_c4":"C4","weapon_knife":"Knife","weapon_knife_t":"T Knife",
+  "weapon_knife_karambit":"Karambit","weapon_healthshot":"Medi-Shot",
+  "vest":"Kevlar","vesthelm":"Kevlar + Helmet","defuser":"Defuse kit","taser":"Zeus x27",
+  "item_assaultsuit":"Kevlar + Helmet","item_kevlar":"Kevlar","item_defuser":"Defuse kit",
+  "r_cleardecals":"Clear blood decals"
+};
+
+const SRC_EN = { "按键":"Bind", "模拟绑定":"Analog bind" };
+function srcLabel(s){ return isEN() ? (SRC_EN[s] || s) : s; }
+
+function deriveCmdEN(cmd){
+  let c = String(cmd || "").trim();
+  if(!c) return null;
+  let pre = "";
+  if(c.charAt(0) === "+") c = c.slice(1);
+  else if(c.charAt(0) === "-"){ c = c.slice(1); pre = "Release "; }
+  return pre + c.replace(/_/g, " ").replace(/\b[a-z]/g, ch => ch.toUpperCase());
+}
+
+/* ---- 设置项名：拆分词根生成可读英文 ---- */
+const WORD_EN = {
+  crosshair:"Crosshair",color:"Color",alpha:"Alpha",dot:"Dot",size:"Size",thickness:"Thickness",gap:"Gap",
+  style:"Style",outline:"Outline",recoil:"Recoil",sniper:"Sniper",fixed:"Fixed",show:"Show",normal:"Normal",
+  inaccuracy:"Inaccuracy",friendly:"Friendly",warning:"Warning",ironsight:"Iron Sight",
+  viewmodel:"Viewmodel",fov:"FOV",offset:"Offset",presetpos:"Preset Position",preset:"Preset",
+  bob:"Bob",cycle:"Cycle",lower:"Lower",amt:"Amount",lat:"Lateral",vert:"Vertical",position:"Position",
+  radar:"Radar",scale:"Scale",always:"Always",centered:"Centered",rotate:"Rotate",square:"Square",
+  scoreboard:"Scoreboard",spectating:"Spectating",dynamic:"Dynamic",hud:"HUD",background:"Background",
+  blur:"Blur",map:"Map",additive:"Additive",teamid:"Team ID",overhead:"Overhead",colors:"Colors",
+  fade:"Fade",near:"Near",teammate:"Teammate",death:"Death",notice:"Notice",clan:"Clan",team:"Team",
+  shadow:"Shadow",shadows:"Shadows",quality:"Quality",texture:"Texture",filtering:"Filtering",
+  detail:"Detail",particle:"Particle",ambient:"Ambient",occlusion:"Occlusion",hdr:"HDR",fsr:"FSR",
+  cmaa:"CMAA",msaa:"MSAA",samples:"Samples",mode:"Mode",aspect:"Aspect",ratio:"Ratio",normal2:"Normal",
+  default:"Default",res:"Resolution",width:"Width",height:"Height",fullscreen:"Fullscreen",coop:"Co-op",
+  window:"Window",border:"Border",borderless:"Borderless",vsync:"VSync",triple:"Triple",buffered:"Buffered",
+  queue:"Queue",gamma:"Gamma",tv:"TV",level:"Level",mem:"Memory",gpu:"GPU",cpu:"CPU",low:"Low",
+  latency:"Latency",multicore:"Multicore",shader:"Shader",cache:"Cache",workers:"Workers",
+  motion:"Motion",boost:"Boost",player:"Player",contrast:"Contrast",ui:"UI",water:"Water",
+  effects:"Effects",reflections:"Reflections",character:"Character",volume:"Volume",music:"Music",
+  game:"Game",voip:"Voice",menu:"Menu",mute:"Mute",focus:"Focus",autodetect:"Auto-detect",
+  mixahead:"Mix Ahead",headphone:"Headphone",eq:"EQ",spatialize:"Spatialize",lerp:"Lerp",
+  steamaudio:"Steam Audio",perspective:"Perspective",correction:"Correction",rate:"Rate",
+  interp:"Interp",predict:"Predict",weapons:"Weapons",timeout:"Timeout",skyname:"Skybox",
+  quickinventory:"Quick Inventory",filename:"Filename",speed:"Speed",radial:"Radial",
+  immediate:"Immediate",select:"Select",tap:"Tap",buywheel:"Buy Wheel",donate:"Donate",
+  chatfilters:"Chat Filters",spray:"Spray",apply:"Apply",ping:"Ping",deadzone:"Dead zone",
+  distance:"Distance",sanitize:"Sanitize",names:"Names",survivors:"Survivors",observer:"Observer",
+  thirdperson:"Third Person",cursor:"Cursor",debounce:"Debounce",scope:"Scope",party:"Party",
+  violence:"Violence",blood:"Blood",gibs:"Gibs",tracers:"Tracers",firstperson:"First Person",
+  visibility:"Visibility",replay:"Replay",autostart:"Autostart",xray:"X-ray",nobinds:"No Binds",
+  duck:"Duck",method:"Method",enable:"",enabled:"",use:"Use",active:"Active",weapon:"Weapon",
+  bloom:"Bloom",sky:"Sky",name:"Name",maxping:"Max Ping",max:"Max",min:"Min",ping2:"Ping",
+  vertical:"Vertical",horizontal:"Horizontal",invert:"Invert",rawinput:"Raw Input",accel:"Accel"
+};
+const PREFIX_RE = /^(setting\.|videocfg_|r_csgo_|optional_user_|active_user_|mat_|cl_|sv_|snd_|voice_|hud_|mm_|net_|mp_|spec_|con_|dsp_|tv_|fps_|r_|m_|option_)/;
+function stripPrefixes(k){
+  let prev;
+  do{ prev = k; k = k.replace(PREFIX_RE, ""); } while(k && k !== prev);
+  return k;
+}
+function tokenizeChunk(chunk){
+  const out = [];
+  let i = 0;
+  while(i < chunk.length){
+    let found = null;
+    for(let len = Math.min(18, chunk.length - i); len >= 2; len--){
+      const sub = chunk.substr(i, len).toLowerCase();
+      if(WORD_EN[sub] !== undefined){ found = sub; break; }
+    }
+    if(!found){ out.push(capEN(chunk.slice(i))); return out; }
+    if(WORD_EN[found]) out.push(WORD_EN[found]);
+    i += found.length;
+  }
+  return out;
+}
+function prettyEN(raw){
+  const stripped = stripPrefixes(String(raw || ""));
+  if(!stripped) return capEN(String(raw || "").replace(/^setting\./, ""));
+  const out = [];
+  for(const chunk of stripped.split(/[._\s]+/)){
+    if(!chunk) continue;
+    if(/^\d+$/.test(chunk)){ out.push(chunk); continue; }
+    const lc = chunk.toLowerCase();
+    if(WORD_EN[lc] !== undefined){ if(WORD_EN[lc]) out.push(WORD_EN[lc]); continue; }
+    out.push.apply(out, tokenizeChunk(chunk));
+  }
+  const s = out.join(" ").trim();
+  return s || capEN(stripped);
+}
+const VIDEO_NAME_OVR_EN = {
+  defaultres:"Resolution Width", defaultresheight:"Resolution Height", knowndevice:"Known Device",
+  nowindowborder:"Borderless Window", aspectratiomode:"Aspect Ratio Mode", aspectranormal:"Aspect Ratio Mode",
+  coop_fullscreen:"Co-op Fullscreen", fullscreen_min_on_focus_loss:"Minimize On Focus Loss",
+  high_dpi:"High DPI Scaling", monitor_index:"Monitor Index", mat_vsync:"Vertical Sync",
+  mat_triplebuffered:"Triple Buffering", mat_queue_mode:"Multicore Rendering", mat_monitorgamma:"Monitor Gamma",
+  mat_monitorgamma_tv_enabled:"TV Gamma", r_low_latency:"Low Latency Mode",
+  refreshrate_numerator:"Refresh Rate (numerator)", refreshrate_denominator:"Refresh Rate (denominator)",
+  refreshrate_default:"Default Refresh Rate", shaderquality:"Shader Quality", texturequality:"Texture Quality",
+  detailquality:"Detail Quality", particlequality:"Particle Quality", shadowquality:"Shadow Quality",
+  r_texturefilteringquality:"Texture Filtering Quality", msaa_samples:"MSAA Samples",
+  r_csgo_cmaa_enable:"CMAA", videocfg_ao_detail:"Ambient Occlusion Detail", videocfg_hdr_detail:"HDR Detail",
+  videocfg_fsr_detail:"FSR Detail", videocfg_shadow_quality:"Shadow Quality",
+  videocfg_dynamic_shadows:"Dynamic Shadows", videocfg_texture_detail:"Texture Detail",
+  videocfg_particle_detail:"Particle Detail", r_csgo_motion_blur:"Motion Blur",
+  r_csgo_boost_player_contrast:"Boost Player Contrast", optional_user_active_weapon_bloom:"Weapon Bloom"
+};
+function nameEN(key){
+  if(!key) return "";
+  const s = String(key).replace(/^setting\./, "");
+  return CONVAR_DESC_EN[key] || CONVAR_DESC_EN[s] || VIDEO_NAME_OVR_EN[s] || prettyEN(key);
+}
+
+/* ---- 设置值含义 -> 英文 ---- */
+const VAL_PHRASE_EN = {
+  "关闭":"Off","开启":"On","是":"Yes","否":"No","未知":"Unknown","已知":"Known",
+  "低":"Low","中":"Medium","高":"High","极高":"Very High","低配":"Low-end","中配":"Mid-range",
+  "高配":"High-end","未配置":"Not configured","自动":"Auto","默认":"Default","默认静态":"Default static",
+  "经典":"Classic","经典动态":"Classic dynamic","自定义":"Custom","桌面":"Desktop","专业":"Professional",
+  "窗口化":"Windowed","全屏":"Fullscreen","窗口化（无边框）":"Windowed (Borderless)",
+  "双缓冲":"Double buffered","三重缓冲":"Triple buffered","超低延迟":"Ultra low latency",
+  "主显示器":"Primary monitor","第二显示器":"Secondary monitor","双线性":"Bilinear","三线性":"Trilinear",
+  "各向异性 2x":"Anisotropic 2x","各向异性 4x":"Anisotropic 4x","各向异性 8x":"Anisotropic 8x",
+  "各向异性 16x":"Anisotropic 16x","红":"Red","绿":"Green","黄":"Yellow","蓝":"Blue","青":"Cyan",
+  "紫":"Purple","橙":"Orange","粉":"Pink","白":"White","浅蓝":"Light blue","立体声":"Stereo",
+  "耳机":"Headphones","按键说话":"Push to talk","语音激活":"Voice activated","按住":"Hold",
+  "切换":"Toggle","仅数字键":"Number keys only","仅颜色":"Color only","完整":"Full",
+  "左手":"Left hand","右手":"Right hand","增强":"Boosted","正常":"Normal","静音":"Muted"
+};
+const VALUE_EN = {};
+(function(){
+  for(const k in VIDEO_VALUE_CN){
+    const src = VIDEO_VALUE_CN[k], dst = {};
+    for(const v in src){
+      const cn = String(src[v]);
+      if(VAL_PHRASE_EN[cn] !== undefined) dst[v] = VAL_PHRASE_EN[cn];
+      else if(!/[\u4e00-\u9fa5]/.test(cn)) dst[v] = cn;
+      else dst[v] = "";
+    }
+    VALUE_EN[k] = dst;
+    const alt = k.indexOf("setting.") === 0 ? k.slice(8) : "setting." + k;
+    if(!VALUE_EN[alt]) VALUE_EN[alt] = dst;
+  }
+})();
+function valueNameEN(key, value){
+  if(value == null) return "";
+  const sv = String(value);
+  let dic = VALUE_EN[key];
+  if(!dic && key.indexOf("setting.") === 0) dic = VALUE_EN[key.slice(8)];
+  if(!dic) dic = VALUE_EN["setting." + key];
+  if(dic && dic[sv] !== undefined && dic[sv] !== "") return dic[sv];
+  const low = sv.toLowerCase();
+  if(low === "true") return "On";
+  if(low === "false") return "Off";
+  return "";
+}
+
+/* ================= 4. 提示语本地化 ================= */
+const MSG_RULES = [
+  [/^正在扫描 (\d+) 个文件…$/, m => "Scanning " + m[1] + " files…"],
+  [/^正在解析账户 (.+) …$/, m => "Parsing account " + m[1] + " …"],
+  [/^正在解析手动选择的文件…$/, () => "Parsing selected files…"],
+  [/^正在解析 cvarlist\.md…$/, () => "Parsing cvarlist.md…"],
+  [/^正在处理…$/, () => "Working…"],
+  [/^已载入账户 (.+)$/, m => "Account " + m[1] + " loaded"],
+  [/^加载失败：(.*)$/, m => "Load failed: " + m[1]],
+  [/^已载入 autoexec：(.*)$/, m => "autoexec loaded: " + m[1]],
+  [/^读取 autoexec 失败：(.*)$/, m => "Failed to read autoexec: " + m[1]],
+  [/^目录文件过多（(\d+) 个），建议直接选择 userdata 目录$/, m => "Too many files (" + m[1] + ") — pick the userdata folder instead"],
+  [/^没有选择任何文件$/, () => "No file selected"],
+  [/^扫描失败：(.*)$/, m => "Scan failed: " + m[1]],
+  [/^没有找到 Steam 账户（userdata\/<id>\/730\/local\/cfg）$/, () => "No Steam account found (userdata/<id>/730/local/cfg)"],
+  [/^已载入 (\d+) 个文件$/, m => m[1] + " file(s) loaded"],
+  [/^解析失败：(.*)$/, m => "Parse failed: " + m[1]],
+  [/^还没有载入任何配置$/, () => "No config loaded yet"],
+  [/^请先选择 Steam 目录或导入 autoexec$/, () => "Select a Steam folder or import autoexec first"],
+  [/^账户索引无效$/, () => "Invalid account index"],
+  [/^还没有导入 autoexec$/, () => "autoexec not imported yet"],
+  [/^已经在运行$/, () => "Already running"],
+  [/^本地字典\/描述库已全部收录，无需联网翻译$/, () => "All entries are already covered locally"],
+  [/^联网翻译完成：(\d+)\/(\d+)$/, m => "Online translation done: " + m[1] + "/" + m[2]],
+  [/^已停止联网翻译$/, () => "Online translation stopped"],
+  [/^已导入 (\d+) 条英文描述（总计 (\d+) 条）$/, m => "Imported " + m[1] + " English descriptions (total " + m[2] + ")"],
+  [/^导入失败：(.*)$/, m => "Import failed: " + m[1]],
+  [/^没找到 \*(.+)\* 文件（试过 (.+)）$/, m => "*" + m[1] + "* file not found (tried " + m[2] + ")"],
+  [/^解析 (.+) 时出错：(.*)$/, m => "Error parsing " + m[1] + ": " + m[2]]
+];
+function localizeMsg(msg){
+  if(!isEN() || !msg) return msg;
+  for(let i = 0; i < MSG_RULES.length; i++){
+    const m = String(msg).match(MSG_RULES[i][0]);
+    if(m) return MSG_RULES[i][1](m);
+  }
+  return msg;
+}
+const _showToast = showToast, _showOverlay = showOverlay;
+showToast = function(msg, ms){ return _showToast(localizeMsg(msg), ms); };
+showOverlay = function(msg){ return _showOverlay(localizeMsg(msg)); };
+
+/* ================= 5. 翻译函数重写（中 / 英） ================= */
+const _tKey = translateKeyLocal, _tCmd = translateCmdLocal,
+      _tVKey = translateVideoKeyLocal, _tVVal = translateVideoValueLocal;
+/* 联网翻译结果缓存（不再覆盖命令值） */
+const ONLINE = { keyCn:new Map(), valCn:new Map(), vidCn:new Map() };
+
+translateKeyLocal = function(key){
+  if(key == null || key === "") return null;
+  if(isEN()){
+    const n = normalizeKeyName(key);
+    if(!n) return null;
+    return KEY_EN[n] || capEN(n.replace(/_/g, " "));
+  }
+  return _tKey(key) || ONLINE.keyCn.get(key) || null;
+};
+
+translateCmdLocal = function(cmd){
+  if(!cmd) return null;
+  if(isEN()){
+    const s = String(cmd).trim();
+    if(!s) return null;
+    const direct = CMD_EN[s.toLowerCase()];
+    if(direct) return direct;
+    const parts = s.split(/[\s;]+/).filter(Boolean);
+    if(parts.length === 1) return deriveCmdEN(parts[0]);
+    return parts.map(p => CMD_EN[p.toLowerCase()] || deriveCmdEN(p)).join(" + ");
+  }
+  return _tCmd(cmd) || ONLINE.valCn.get(cmd) || null;
+};
+
+translateVideoKeyLocal = function(key){
+  if(!key) return null;
+  if(isEN()) return nameEN(key);
+  return _tVKey(key) || ONLINE.vidCn.get(key) || null;
+};
+
+translateVideoValueLocal = function(key, value){
+  if(isEN()) return valueNameEN(key, value) || null;
+  return _tVVal(key, value);
+};
+
+/* makeVideo：英文走 nameEN，中文保持原逻辑 */
+makeVideo = function(key, value){
+  const desc_en = lookupDescEN(key) || "";
+  let key_cn;
+  if(isEN()) key_cn = nameEN(key);
+  else key_cn = lookupDescCN(key) || translateVideoKeyLocal(key) || "";
+  const value_cn = isEN() ? (valueNameEN(key, value) || "") : (translateVideoValueLocal(key, value) || "");
+  const dup = isEN() && desc_en && String(key_cn).toLowerCase() === desc_en.toLowerCase();
+  return { key, key_cn, value:String(value), value_cn, desc_en: dup ? "" : desc_en, trans:"" };
+};
+
+/* ================= 6. 概览 / 诊断 ================= */
+function summaryText(src, view){
+  const missK = view.keys.filter(it => !it.key_cn || !it.value_cn).length;
+  const missV = view.video.filter(it => !it.key_cn).length;
+  if(src.type === "vcfg"){
+    const n = Object.keys(src.found_paths || {}).length;
+    return isEN()
+      ? "Done · vcfg " + n + " file(s) · " + view.convar.length + " convars · " + view.keys.length + " binds (" + missK + " missing) · " + view.video.length + " settings (" + missV + " missing)"
+      : "完成 · vcfg " + n + " 个文件 · " + view.convar.length + " 配置 · " + view.keys.length + " 按键（" + missK + " 未收录）· " + view.video.length + " 设置（" + missV + " 未收录）";
+  }
+  return isEN()
+    ? "Done · autoexec " + src.binds_count + " binds, " + src.settings_count + " settings · " + view.video.length + " settings (" + missV + " missing)"
+    : "完成 · autoexec " + src.binds_count + " 按键、" + src.settings_count + " 项设置 · " + view.video.length + " 设置（" + missV + " 未收录）";
+}
+function diagText(src){
+  if(!src) return t("emptyNoData");
+  const L = ["CS2 CFG Viewer v4.1.0", ""];
+  if(src.type === "vcfg"){
+    L.push(isEN() ? "vcfg data source" : "vcfg 数据源");
+    L.push(isEN() ? "  Config dir: " + (src.cfg_dir || "") : "  配置目录：" + (src.cfg_dir || ""));
+    if(src.source_desc) L.push(isEN() ? "  Origin: " + src.source_desc : "  来源：" + src.source_desc);
+    L.push(isEN() ? "  Files:" : "  文件：");
+    const paths = Object.entries(src.found_paths || {});
+    if(paths.length){ for(const p of paths) L.push("    [" + p[0] + "] " + p[1]); }
+    else L.push(isEN() ? "    (none found)" : "    （没有找到文件）");
+    if(src.errors && src.errors.length){
+      L.push(isEN() ? "  Notes:" : "  提示：");
+      for(const e of src.errors) L.push("    - " + localizeMsg(e));
+    }
+  } else {
+    L.push(isEN() ? "autoexec data source" : "autoexec 数据源");
+    L.push(isEN() ? "  File: " + (src.filename || src.path || "") : "  文件：" + (src.filename || src.path || ""));
+    L.push(isEN() ? "  Binds: " + src.binds_count : "  按键绑定：" + src.binds_count + " 条");
+    L.push(isEN() ? "  Settings: " + src.settings_count + " (deduped)" : "  设置项：" + src.settings_count + " 条（已去重）");
+  }
+  L.push("");
+  L.push(isEN() ? "Dictionary status:" : "描述库状态：");
+  if(isEN()){
+    L.push("  English names (built-in): " + Object.keys(CONVAR_DESC_EN).length + " + 词根拆分");
+    L.push("  Chinese names (pre-translated): " + Object.keys(CONVAR_DESC_CN).length);
+  } else {
+    L.push("  中文描述（预翻译）：" + Object.keys(CONVAR_DESC_CN).length + " 条");
+    L.push("  英文描述（增强翻译）：" + Object.keys(CONVAR_DESC_EN).length + " 条");
+  }
+  return L.join("\n");
+}
+const _buildView = buildView;
+buildView = function(src){
+  const v = _buildView(src);
+  if(!src){ v.summary = t("emptyNoData"); v.diagnosis = t("emptyNoData"); return v; }
+  v.summary = summaryText(src, v);
+  v.diagnosis = diagText(src);
+  return v;
+};
+
+/* ================= 7. 渲染函数重写 ================= */
+renderSourceSelect = function(){
+  const sel = $("#sourceSelect");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  if(!state.users.length && !state.autoexecFile){
+    const opt = document.createElement("option");
+    opt.value = ""; opt.textContent = t("noSource");
+    sel.appendChild(opt);
+    return;
+  }
+  state.users.forEach((u, i) => {
+    const opt = document.createElement("option");
+    opt.value = "user:" + i; opt.textContent = u.display;
+    sel.appendChild(opt);
+  });
+  if(state.autoexecFile){
+    const opt = document.createElement("option");
+    opt.value = "autoexec"; opt.textContent = "autoexec (" + state.autoexecFile.name + ")";
+    sel.appendChild(opt);
+  }
+  if(prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
+};
+
+renderPath = function(){
+  const el = $("#pathDisplay");
+  if(state.users.length){
+    const sel = $("#sourceSelect");
+    const val = sel ? sel.value : "";
+    let cur = "";
+    if(val && val.indexOf("user:") === 0){
+      const u = state.users[parseInt(val.slice(5), 10)];
+      if(u) cur = u.display;
+    } else if(val === "autoexec" && state.autoexecFile) cur = "autoexec";
+    el.textContent = isEN()
+      ? "Steam: " + state.rootLabel + " · " + state.users.length + " account(s)" + (cur ? " · Current: " + cur : "")
+      : "Steam: " + state.rootLabel + " · " + state.users.length + " 个账户" + (cur ? " · 当前：" + cur : "");
+    el.classList.remove("placeholder");
+  } else if(state.autoexecFile){
+    el.textContent = "autoexec: " + state.autoexecFile.name;
+    el.classList.remove("placeholder");
+  } else {
+    el.textContent = t("pathPlaceholder");
+    el.classList.add("placeholder");
+  }
+};
+
+renderKeys = function(){
+  const table = $("#keys-table"), empty = $("#keys-empty"), tbody = table.querySelector("tbody");
+  if(!state.view || !state.view.keys.length){
+    table.style.display = "none"; empty.style.display = "flex";
+    empty.textContent = state.view ? t("emptyNoBinds") : t("emptyNoData");
+    return;
+  }
+  empty.style.display = "none"; table.style.display = "table";
+  const frag = document.createDocumentFragment();
+  const q = state.search.toLowerCase();
+  let count = 0;
+  for(const it of state.view.keys){
+    if(q){
+      const hay = (it.source + " " + it.key + " " + it.key_cn + " " + it.value + " " + it.value_cn).toLowerCase();
+      if(!hay.includes(q)) continue;
+    }
+    count++;
+    const tr = document.createElement("tr");
+    const miss = '<span class="tag miss">' + escapeHtml(t("missing")) + '</span>';
+    tr.innerHTML =
+      '<td><span class="tag">' + escapeHtml(srcLabel(it.source)) + '</span></td>' +
+      '<td class="mono">' + escapeHtml(it.key) + '</td>' +
+      '<td>' + (it.key_cn ? escapeHtml(it.key_cn) : miss) + '</td>' +
+      '<td class="mono">' + escapeHtml(it.value) + '</td>' +
+      '<td>' + (it.value_cn ? escapeHtml(it.value_cn) : miss) + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = "";
+  if(count === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="5" style="text-align:center;color:#9aa0ad;padding:30px;">' + escapeHtml(t("noMatch")) + '</td>';
+    tbody.appendChild(tr);
+  } else tbody.appendChild(frag);
+};
+
+renderVideo = function(){
+  const table = $("#video-table"), empty = $("#video-empty"), tbody = table.querySelector("tbody");
+  if(!state.view || !state.view.video.length){
+    table.style.display = "none"; empty.style.display = "flex";
+    empty.textContent = state.view ? t("emptyNoVideo") : t("emptyNoData");
+    return;
+  }
+  empty.style.display = "none"; table.style.display = "table";
+  const frag = document.createDocumentFragment();
+  const q = state.search.toLowerCase();
+  let count = 0;
+  for(const it of state.view.video){
+    if(q){
+      const hay = (it.key + " " + it.key_cn + " " + it.value + " " + it.value_cn + " " + (it.desc_en || "")).toLowerCase();
+      if(!hay.includes(q)) continue;
+    }
+    count++;
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="mono">' + escapeHtml(it.key) + '</td>' +
+      '<td>' + (it.key_cn ? escapeHtml(it.key_cn) : '<span class="tag miss">' + escapeHtml(t("missing")) + '</span>') + '</td>' +
+      '<td class="mono">' + escapeHtml(it.value) + '</td>' +
+      '<td>' + escapeHtml(it.value_cn || "") + '</td>' +
+      '<td style="font-size:11.5px;color:#7a7f8c;">' + escapeHtml(it.desc_en || "") + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = "";
+  if(count === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="5" style="text-align:center;color:#9aa0ad;padding:30px;">' + escapeHtml(t("noMatch")) + '</td>';
+    tbody.appendChild(tr);
+  } else tbody.appendChild(frag);
+};
+
+const _renderRaw = renderRaw, _renderDiag = renderDiagnosis, _updateSummary = updateSummary;
+renderRaw = function(){ _renderRaw(); const el = $("#rawContent"); if(el && el.className === "empty") el.textContent = t("emptyNoData"); };
+renderDiagnosis = function(){ _renderDiag(); if(!state.view || !state.view.diagnosis) $("#diagContent").textContent = t("emptyNoData"); };
+updateSummary = function(){ _updateSummary(); if(!state.view || !state.view.summary) $("#summary").textContent = t("emptyNoData"); };
+
+/* 手动文件：选项文案跟随语言 */
+const _handleManualFiles = handleManualFiles;
+handleManualFiles = function(fileList){
+  _handleManualFiles(fileList);
+  let n = 0;
+  const timer = setInterval(() => {
+    const sel = $("#sourceSelect");
+    const opt = sel && sel.options[0];
+    if(opt && !opt.value && opt.textContent === UI.manualLoaded.zh){
+      opt.textContent = t("manualLoaded");
+      clearInterval(timer);
+    }
+    if(++n > 40) clearInterval(timer);
+  }, 100);
+};
+
+/* ================= 8. 联网翻译（修复原版会覆盖命令值的 bug） ================= */
+startOnline = async function(){
+  if(!state.source){ showToast("还没有载入任何配置"); return; }
+  if(isEN()){ showToast(t("onlineTip")); return; }
+  if(state.online.running){ showToast("已经在运行"); return; }
+  const pending = collectPending();
+  if(!pending.length){
+    showToast("本地字典/描述库已全部收录，无需联网翻译");
+    $("#onlineProgress").textContent = "0/0";
+    return;
+  }
+  const o = state.online;
+  o.running = true; o.cancelled = false; o.done = 0; o.total = pending.length;
+  o.pending = pending; o.threadToken++;
+  const myToken = o.threadToken;
+  const stop = function(){ o.running = false; $("#btnStartOnline").disabled = isEN(); $("#btnStopOnline").disabled = true; };
+  $("#btnStartOnline").disabled = true;
+  $("#btnStopOnline").disabled = false;
+  $("#onlineProgress").textContent = "0/" + o.total;
+  for(let i = 0; i < pending.length; i++){
+    if(o.cancelled || myToken !== o.threadToken){ stop(); return; }
+    const item = pending[i];
+    const result = await translateOne(item.text, myToken, item.context);
+    if(o.cancelled || myToken !== o.threadToken){ stop(); return; }
+    if(result){
+      if(item.kind === "key"){
+        const row = state.source.key[item.idx] || [];
+        if(item.field === "key_cn") ONLINE.keyCn.set(row[1], result);
+        else ONLINE.valCn.set(row[2], result);
+      } else {
+        const row = state.source.video[item.idx] || [];
+        ONLINE.vidCn.set(row[0], result);
+      }
+      state.view = buildView(state.source);
+      if(item.kind === "key") renderKeys(); else renderVideo();
+      updateSummary();
+    }
+    o.done++;
+    $("#onlineProgress").textContent = o.done + "/" + o.total;
+  }
+  stop();
+  showToast("联网翻译完成：" + o.done + "/" + o.total);
+};
+
+/* ================= 9. 界面刷新 / 切换 ================= */
+function setText(el, txt){ if(el) el.textContent = txt; }
+function syncOnlineBtn(){
+  const b = $("#btnStartOnline");
+  if(!b) return;
+  if(isEN()){ b.disabled = true; b.title = t("onlineTip"); }
+  else { b.disabled = !!state.online.running; b.title = ""; }
+}
+function applyLang(){
+  document.documentElement.lang = isEN() ? "en" : "zh-CN";
+  setText($("#btnPickDir"), t("pickDir")); $("#btnPickDir").title = t("pickDirTip");
+  setText($("#btnPickFiles"), t("pickFiles")); $("#btnPickFiles").title = t("pickFilesTip");
+  setText($("#btnImportAutoexec"), t("importAutoexec"));
+  setText($("#btnImportCvarlist"), t("importCvarlist")); $("#btnImportCvarlist").title = t("importCvarlistTip");
+  setText($("#btnReload"), t("reload"));
+  const selEl = $("#sourceSelect");
+  if(selEl && selEl.previousElementSibling) selEl.previousElementSibling.textContent = t("dataSource");
+  const tabKeys = { keys:"tabKeys", video:"tabVideo", raw:"tabRaw", diag:"tabDiag" };
+  document.querySelectorAll(".tabs button[data-tab]").forEach(function(b){
+    const k = tabKeys[b.dataset.tab];
+    if(k) b.textContent = t(k);
+  });
+  $("#search").placeholder = t("search");
+  const kth = document.querySelectorAll("#keys-table thead th");
+  ["thSource","thKey","thKeyName","thCmd","thCmdName"].forEach(function(k, i){ if(kth[i]) kth[i].textContent = t(k); });
+  const vth = document.querySelectorAll("#video-table thead th");
+  ["thSetting","thSettingName","thValue","thValueName","thDesc"].forEach(function(k, i){ if(vth[i]) vth[i].textContent = t(k); });
+  setText($("#btnStartOnline"), t("startOnline"));
+  setText($("#btnStopOnline"), t("stopOnline"));
+  const lb = $("#btnLang");
+  if(lb){ lb.textContent = t("langBtn"); lb.title = t("langTip"); }
+  syncOnlineBtn();
+}
+function switchLang(){
+  LANG = isEN() ? "zh" : "en";
+  saveLang();
+  if(state.source) state.view = buildView(state.source);
+  applyLang();
+  renderAll();
+  showToast(isEN() ? "Switched to English" : "已切换到中文");
+}
+function createLangButton(){
+  const links = document.querySelector(".header .links");
+  if(!links || document.getElementById("btnLang")) return;
+  const btn = document.createElement("button");
+  btn.id = "btnLang";
+  btn.className = "lang-toggle";
+  btn.addEventListener("click", switchLang);
+  links.insertBefore(btn, links.firstChild);
+}
+
+/* ================= 10. 启动 ================= */
+createLangButton();
+applyLang();
+if(state.source) state.view = buildView(state.source);
+renderAll();
+})();
+</script>
+<!-- ===== 双语补丁结束 ===== -->
+
 </body>
-</html>
+

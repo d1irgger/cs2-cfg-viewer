@@ -6,7 +6,7 @@
 
 一款专为 **Counter-Strike 2** 打造的 **CFG/VCFG 可视化查看与解析工具**。支持按键绑定、控制台命令、视频设置的智能英译中翻译，让你快速理解自己（或别人）的配置。
 
-[![Version](https://img.shields.io/badge/version-4.1.0-6aa0ff)](https://github.com/d1irgger/cs2-cfg-viewer)
+[![Version](https://img.shields.io/badge/version-4.2.0-6aa0ff)](https://github.com/d1irgger/cs2-cfg-viewer)
 [![Online](https://img.shields.io/badge/🌐_在线使用-d1irgger.github.io/cs2--cfg--viewer-a98bff)](https://d1irgger.github.io/cs2-cfg-viewer/)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
